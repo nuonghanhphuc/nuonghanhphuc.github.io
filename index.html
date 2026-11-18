@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nướng Hạnh Phúc</title>
+<meta name="theme-color" content="#c0392b">
+<meta name="apple-mobile-web-app-title" content="Hạnh Phúc">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%94%A5%3C/text%3E%3C/svg%3E">
+<style>
+  html,body{margin:0;height:100%;background:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  #app{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}
+  #wait{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#555;background:#fff;transition:opacity .3s}
+  #wait.hide{opacity:0;pointer-events:none}
+  .spin{width:36px;height:36px;border:4px solid #eee;border-top-color:#c0392b;border-radius:50%;animation:s 1s linear infinite}
+  @keyframes s{to{transform:rotate(360deg)}}
+  #wait a{color:#c0392b;font-size:14px;display:none}
+  #wait.slow a{display:block}
+</style>
+</head>
+<body>
+<div id="wait"><div class="spin"></div><div>Đang mở Nướng Hạnh Phúc…</div><a id="direct" href="#">Chậm quá? Bấm vào đây để mở trực tiếp</a></div>
+<script>
+  // MODE: 'embed' = giữ địa chỉ ngắn trên thanh địa chỉ; 'redirect' = chuyển thẳng sang link Google.
+  var MODE = 'embed';
+  var APP = 'https://script.google.com/macros/s/AKfycbzdah_cU50A74H2sJx-IYR7vVZAP0_Pn82h3SiTqdPvVFntR4a2Sj8wWzuJ1ll06caHHA/exec';
+  var q = location.search || '';
+  var target = APP + q;
+  document.getElementById('direct').href = target;
+  if (MODE === 'redirect' || /[?&]direct=1/.test(q)) {
+    location.replace(target.replace(/([?&])direct=1&?/, '$1').replace(/[?&]$/, ''));
+  } else {
+    var f = document.createElement('iframe');
+    f.id = 'app';
+    f.title = 'Nướng Hạnh Phúc';
+    f.src = target;
+    f.allow = 'camera *; geolocation *; microphone *; clipboard-read *; clipboard-write *; fullscreen *';
+    f.setAttribute('allowfullscreen', '');
+    var w = document.getElementById('wait');
+    var t = setTimeout(function(){ w.className = 'slow'; }, 12000);
+    f.onload = function(){ clearTimeout(t); w.className = 'hide'; };
+    document.body.appendChild(f);
+  }
+</script>
+<noscript><a href="https://script.google.com/macros/s/AKfycbzdah_cU50A74H2sJx-IYR7vVZAP0_Pn82h3SiTqdPvVFntR4a2Sj8wWzuJ1ll06caHHA/exec">Mở Nướng Hạnh Phúc</a></noscript>
+</body>
+</html>
