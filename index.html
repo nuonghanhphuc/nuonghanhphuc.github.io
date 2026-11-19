@@ -8,6 +8,8 @@
 <meta name="apple-mobile-web-app-title" content="Hạnh Phúc">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%94%A5%3C/text%3E%3C/svg%3E">
 <style>
   html,body{margin:0;height:100%;background:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
@@ -18,6 +20,12 @@
   @keyframes s{to{transform:rotate(360deg)}}
   #wait a{color:#c0392b;font-size:14px;display:none}
   #wait.slow a{display:block}
+  #pushbar{position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:9;display:none;align-items:center;gap:10px;padding:12px 12px 12px 14px;background:#1f2937;color:#fff;border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.25);font-size:14px;line-height:1.35}
+  #pushbar.show{display:flex}
+  #pushbar .t{flex:1}
+  #pushbar button{border:0;border-radius:10px;padding:9px 14px;font:inherit;font-weight:700;cursor:pointer}
+  #pushbar .ok{background:#c0392b;color:#fff;white-space:nowrap}
+  #pushbar .x{background:transparent;color:#bbb;padding:6px 8px;font-size:18px}
 </style>
 </head>
 <body>
@@ -43,6 +51,70 @@
     f.onload = function(){ clearTimeout(t); w.className = 'hide'; };
     document.body.appendChild(f);
   }
+</script>
+<div id="pushbar"><div class="t" id="pushtxt"></div><button class="ok" id="pushok">Bật thông báo</button><button class="x" id="pushx" aria-label="Đóng">×</button></div>
+<script>
+/* ===== Thông báo đẩy lên điện thoại (Firebase Cloud Messaging) =====
+   App (trong khung) gửi 'hello' khi đã đăng nhập → trang này xin quyền, lấy mã thiết bị, trả lại cho app lưu. */
+(function () {
+  var CFG = { apiKey: 'AIzaSyBU4SunLjAjF9gbhX2mEoGEdyb0EJFveZs', authDomain: 'nuong-hanh-phuc-hrm.firebaseapp.com', projectId: 'nuong-hanh-phuc-hrm',
+    storageBucket: 'nuong-hanh-phuc-hrm.firebasestorage.app', messagingSenderId: '145162781941', appId: '1:145162781941:web:df9dabe9aa3e903ad271bc' };
+  var VAPID = 'BHTYAGQypOQa78hohXmrfigAutruMz_llBk49J-Oa3efwxZaNq-GXK4dFGPs7XWqZFkXQfMLOvkxDDj0zIhMprk';
+  var SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
+  var ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var standalone = window.navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+  var supported = 'serviceWorker' in navigator && 'Notification' in window && 'PushManager' in window;
+  var src = null, logged = false, regP = null, msgP = null;
+  var bar = document.getElementById('pushbar'), txt = document.getElementById('pushtxt'), okb = document.getElementById('pushok');
+  function perm() { return supported ? Notification.permission : 'unsupported'; }
+  function post(m) { if (src) try { src.postMessage(m, '*'); } catch (e) {} }
+  function state() { post({ hp: 'state', perm: perm(), supported: supported, ios: ios, standalone: standalone }); }
+  function load(u) { return new Promise(function (ok, no) { var s = document.createElement('script'); s.src = u; s.onload = ok; s.onerror = no; document.head.appendChild(s); }); }
+  function messaging() {
+    if (!msgP) msgP = load(SDK + 'firebase-app-compat.js').then(function () { return load(SDK + 'firebase-messaging-compat.js'); }).then(function () {
+      if (!firebase.apps.length) firebase.initializeApp(CFG);
+      var m = firebase.messaging();
+      m.onMessage(function (p) {
+        var d = (p && p.data) || {};
+        reg().then(function (r) { r.showNotification(d.title || 'Nướng Hạnh Phúc', { body: d.body || '', icon: '/icon-192.png', tag: d.tag || undefined, data: { link: d.link || '/' } }); });
+      });
+      return m;
+    });
+    return msgP;
+  }
+  function reg() { if (!regP) regP = navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' }); return regP; }
+  function label() { var u = navigator.userAgent; return (ios ? 'iPhone' : /Android/.test(u) ? 'Android' : 'Máy tính') + (standalone ? ' (ứng dụng)' : '') + ' · ' + (u.match(/(Chrome|CriOS|Firefox|Version)\/[\d.]+/) || [''])[0]; }
+  function sendToken() {
+    return Promise.all([messaging(), reg()]).then(function (x) { return x[0].getToken({ vapidKey: VAPID, serviceWorkerRegistration: x[1] }); })
+      .then(function (t) { if (t) post({ hp: 'token', token: t, label: label() }); hide(); state(); })
+      .catch(function (e) { console.warn('push token', e); state(); });
+  }
+  function enable() {
+    if (!supported) return;
+    okb.disabled = true;
+    Notification.requestPermission().then(function (p) { okb.disabled = false; state(); if (p === 'granted') sendToken(); else hide(); });
+  }
+  function hide() { bar.className = ''; }
+  function dismissed() { try { return Date.now() - Number(localStorage.getItem('hp_push_x') || 0) < 3 * 86400000; } catch (e) { return false; } }
+  function maybeShow() {
+    if (!logged || dismissed()) return;
+    if (ios && !standalone) { txt.textContent = 'Muốn nhận thông báo trên iPhone: bấm nút Chia sẻ ⬆️ → "Thêm vào MH chính", rồi mở app từ biểu tượng mới.'; okb.style.display = 'none'; bar.className = 'show'; return; }
+    if (!supported || perm() !== 'default') return;
+    txt.textContent = '🔔 Bật thông báo để nhận tin ngay trên điện thoại (nhắc chấm công, duyệt, phiếu lương…)'; okb.style.display = ''; bar.className = 'show';
+  }
+  okb.onclick = enable;
+  document.getElementById('pushx').onclick = function () { hide(); try { localStorage.setItem('hp_push_x', String(Date.now())); } catch (e) {} };
+  window.addEventListener('message', function (e) {
+    if (!/\.googleusercontent\.com$/.test(String(e.origin).replace(/^https:\/\//, '').split('/')[0])) return;
+    var d = e.data || {};
+    if (!d.hp) return;
+    src = e.source;
+    if (d.hp === 'hello') { logged = true; state(); if (supported && perm() === 'granted') sendToken(); else maybeShow(); }
+    else if (d.hp === 'enable') { try { localStorage.removeItem('hp_push_x'); } catch (x) {} if (supported && perm() === 'default') { maybeShow(); enable(); } else maybeShow(); }
+    else if (d.hp === 'logout') { logged = false; hide(); }
+  });
+  if (supported) reg().catch(function () {});
+})();
 </script>
 <noscript><a href="https://script.google.com/macros/s/AKfycbzdah_cU50A74H2sJx-IYR7vVZAP0_Pn82h3SiTqdPvVFntR4a2Sj8wWzuJ1ll06caHHA/exec">Mở Nướng Hạnh Phúc</a></noscript>
 </body>
